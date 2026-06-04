@@ -1,1 +1,210 @@
-VIVA GESU AAHLELEL ALELAS
+<!-- Copyright BROSINCODE 2026 ®-->
+<html>
+    <head>
+        <title>SHAMSHBUZZBROS</title>
+        <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+
+        <style>
+            body{
+                margin: 0;
+                padding: 0;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>SHAMSHBUZZBROS</h1>
+        <div id="host">
+            <h1>Host Game</h1>
+            <button id="btn-host">Host Game</button>
+        </div>
+            
+    
+        <div id="join">
+            <h1>Join Game</h1>
+            <input id="player-id" type="text" placeholder="Player ID">
+            <input id="room-id" type="text" placeholder="codice stanza">
+            <button id="btn-join">Join Game</button>
+        </div>
+
+        <div hidden id="game">
+            <p id="status"></p>
+            <div id="leaderboard" style="display: flex; flex-direction:column;">
+                
+            </div>
+            <p id="buzz"></p>
+        </div>
+
+        <script>
+            let peer = null;
+            let isHost = false;
+            let nickname = "Host"
+
+            let hostsMap = {};
+            let playerConn = null;
+
+            const game = document.getElementById('game');
+            const hostPanel = document.getElementById('host');
+            const joinPanel = document.getElementById('join');
+            const statusText = document.getElementById('status');
+            const leaderboard = document.getElementById('leaderboard');
+            const buzz = document.getElementById('buzz');
+
+            document.getElementById('btn-host').addEventListener('click', () => {
+                isHost = true;
+                
+                peer = new Peer();
+
+                peer.on('open', (id) => {
+                    showGameScreen("Host", id);
+                    setupHostListeners();
+                });
+            });
+
+            document.getElementById('btn-join').addEventListener('click', () => {
+                const playerID = document.getElementById('player-id').value.trim();
+                const roomID = document.getElementById('room-id').value.trim();
+                
+                if(!nickname || !roomID)
+                {
+                    alert("Please dont be a dick!");
+                    return; 
+                }
+
+                isHost = false;
+                nickname = playerID;
+
+                peer = new Peer();
+                peer.on('open', () => {
+                    playerConn = peer.connect(roomID);
+
+                    playerConn.on('open', () => {
+                        showGameScreen(nickname, roomID);
+                        playerConn.send({type: 'HANDSHAKE', name: nickname});
+                    });
+
+                    setupPlayerListeners();
+                });
+            });
+
+            function setupHostListeners()
+            {
+                peer.on('connection', (conn) =>{
+                    conn.on('data', (data) => {
+                        if(data.type === 'HANDSHAKE')
+                        {
+                            hostsMap[conn.peer] = {
+                                conn: conn,
+                                name: data.name,
+                                score: 0
+                            };
+
+                            let players_list = getPlayerList(hostsMap);
+
+                            updateLeadearboard(players_list);
+                            broadcastAll({type:"SYNC_LEADERBOARD", players: players_list});
+                        }
+
+                    });
+
+                    conn.on('close', () => {
+                        if(hostsMap[conn.peer])
+                        {
+                            delete hostsMap[conn.peer];
+                            let players_list = getPlayerList(hostsMap);
+                            updateLeadearboard(players_list);
+                            broadcastAll({type:"SYNC_LEADERBOARD", players: players_list});
+                        }
+                    });
+                });
+            }
+
+            function getPlayerList(hostsMap)
+            {
+                let players_list = {};
+                let i = 0;
+                Object.keys(hostsMap).forEach(peerID => {
+                    const n = hostsMap[peerID].name;
+                    const s = hostsMap[peerID].score;
+
+                    players_list[i] = {
+                        name: n,
+                        score: s
+                    };
+
+                    i++;
+
+                });
+
+                return players_list;
+            }
+
+            function setupPlayerListeners()
+            {
+                playerConn.on('data', (data) => {
+                    if(data.type === "SYNC_LEADERBOARD")
+                    {
+                        updateLeadearboard(data.players);
+                    }
+                });
+            }
+
+            function showGameScreen(nickname, roomID)
+            {
+                hostPanel.hidden = true;
+                joinPanel.hidden = true;
+
+                game.hidden = false;
+
+                if(isHost)
+                {
+                    statusText.textContent = "ROOM ID: " + roomID;
+                }else{
+                    statusText.textContent = "ROOM ID: " + roomID + ". You are " + nickname;
+                }
+            }
+
+            function updateLeadearboard(players)
+            {
+                leaderboard.innerHTML = "";
+                Object.entries(players).forEach(([name, data]) => {
+                    const n = data.name;
+                    const s = data.score;
+                    
+                    if(isHost){
+                        leaderboard.innerHTML += "<div style='display:flex; flex-direction:row;'><p>" + n + " " + s + "</p><button onclick='updateScore(\"" + n + "\")'>+1</button></div>";
+                    }else{
+                        leaderboard.innerHTML += "<div><p>" + n + " " + s + "</p></div>";
+                    }
+                });
+            }
+
+            function broadcastAll(payload, excludedPeerID = null)
+            {
+                Object.keys(hostsMap).forEach(peerID => {
+                    if(peerID !== excludedPeerID)
+                    {
+                        const client = hostsMap[peerID].conn;
+                        if(client.open) client.send(payload);
+                    }
+                });
+            }
+
+            function updateScore(name)
+            {
+                Object.keys(hostsMap).forEach(peerID => {
+                    const n = hostsMap[peerID].name;
+
+                    if(n === name)
+                    {
+                        hostsMap[peerID].score++;
+                        updateLeadearboard(hostsMap);
+
+                        broadcastAll({type:"SYNC_LEADERBOARD", players: getPlayerList(hostsMap)});
+                    }
+                });
+            }
+
+        </script>
+    
+    </body>
+</html>
