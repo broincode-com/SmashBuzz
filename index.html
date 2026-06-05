@@ -28,10 +28,15 @@
 
         <div hidden id="game">
             <p id="status"></p>
-            <div id="leaderboard" style="display: flex; flex-direction:column;">
-                
+            <div id="leaderboard" style="display: flex; flex-direction:column;"></div>
+
+            <button onclick="resetClicked()" id="btn-reset">Reset</button>
+
+            <div>
+                <p id="notify"></p>
+                <button onclick="buzzClicked()" id="buzz">Buzz</button>
+                <canvas id="canvas" style="width: 100vw; height:100vh;" hidden></canvas>
             </div>
-            <p id="buzz"></p>
         </div>
 
         <script>
@@ -42,12 +47,20 @@
             let hostsMap = {};
             let playerConn = null;
 
+            let hasBuzzed = false;
+
+            let localDrawing = false;
+
             const game = document.getElementById('game');
             const hostPanel = document.getElementById('host');
             const joinPanel = document.getElementById('join');
             const statusText = document.getElementById('status');
             const leaderboard = document.getElementById('leaderboard');
             const buzz = document.getElementById('buzz');
+            const notify = document.getElementById('notify');
+            const reset = document.getElementById('btn-reset');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
 
             document.getElementById('btn-host').addEventListener('click', () => {
                 isHost = true;
@@ -86,12 +99,28 @@
                 });
             });
 
+            function rejection(msg)
+            {
+                hostPanel.hidden = false;
+                joinPanel.hidden = false;
+
+                game.hidden = true;
+
+                alert(msg);
+            }
+
             function setupHostListeners()
             {
                 peer.on('connection', (conn) =>{
                     conn.on('data', (data) => {
                         if(data.type === 'HANDSHAKE')
                         {
+                            if(hasBuzzed)
+                            {
+                                conn.send({type:"REJECTED", msg:"Partita in corso..."});
+                                conn.close();
+                                return;
+                            }
                             hostsMap[conn.peer] = {
                                 conn: conn,
                                 name: data.name,
@@ -101,7 +130,30 @@
                             let players_list = getPlayerList(hostsMap);
 
                             updateLeadearboard(players_list);
+                            
                             broadcastAll({type:"SYNC_LEADERBOARD", players: players_list});
+                        }
+
+                        if(data.type === "BUZZ")
+                        {
+                            if(hasBuzzed) return;
+                            hasBuzzed = true;
+
+                            notify.textContent = hostsMap[conn.peer].name + " BUZZED";
+
+                            broadcastAll({type: "SYNC_BUZZ", name: hostsMap[conn.peer].name}, peer);
+                            hostsMap[conn.peer].conn.send({type:"DRAW"});
+                        }
+                        
+                        if(data.type === "RESET")
+                        {
+                            resetGame();
+                        }
+                        
+                        if(data.type === "DRAW_STREAM")
+                        {
+                            drawVector(data.x, data.y, data.action);
+                            broadcastAll(data, conn.peer);
                         }
 
                     });
@@ -145,6 +197,31 @@
                     {
                         updateLeadearboard(data.players);
                     }
+
+                    if(data.type === "SYNC_BUZZ")
+                    {
+                        switchToCanvas(data.name);
+                    }
+
+                    if(data.type === "RESET")
+                    {
+                        resetGame();
+                    }
+                    
+                    if(data.type === "DRAW_STREAM")
+                    {
+                        drawVector(data.x, data.y, data.action);
+                    }
+
+                    if(data.type === "DRAW")
+                    {
+                        setupCanvasInteractions();
+                    }
+
+                    if(data.type === "REJECTED")
+                    {
+                        rejection(data.msg);
+                    }
                 });
             }
 
@@ -155,11 +232,19 @@
 
                 game.hidden = false;
 
+                disableCanvasInteractions();
+
                 if(isHost)
                 {
                     statusText.textContent = "ROOM ID: " + roomID;
+                    reset.hidden = false;
+                    buzz.hidden = true;
+                    canvas.hidden = false;
                 }else{
                     statusText.textContent = "ROOM ID: " + roomID + ". You are " + nickname;
+                    reset.hidden = true;
+                    buzz.hidden = false;
+                    canvas.hidden = true;
                 }
             }
 
@@ -202,6 +287,141 @@
                         broadcastAll({type:"SYNC_LEADERBOARD", players: getPlayerList(hostsMap)});
                     }
                 });
+            }
+
+            function switchToCanvas(name)
+            {
+                if(isHost) return;
+                
+                buzz.hidden = true;
+                canvas.hidden = false;
+                notify.textContent = name + " BUZZED";
+            }
+
+            function buzzClicked()
+            {
+                if(isHost) return;
+
+                playerConn.send({type: "BUZZ"});
+            }
+
+            function resetGame()
+            {
+                if(isHost)
+                {
+                    hasBuzzed = false;
+                }else
+                {
+                    buzz.hidden = false;
+                    canvas.hidden = true;
+                }
+
+                notify.textContent = "";
+                disableCanvasInteractions();
+                clearCanvasLocal();
+            }
+
+            function resetClicked()
+            {
+                resetGame();
+                broadcastAll({type: "RESET"});
+            }
+
+            // CANVAS
+
+            function getCanvasCoordinates(e)
+            {
+                const rect = canvas.getBoundingClientRect();
+
+                return {x: (e.clientX - rect.left) * (canvas.width / rect.width),
+                        y: (e.clientY - rect.top) * (canvas.height / rect.height)};
+            }
+
+            function setupCanvasInteractions()
+            {
+                canvas.onmousedown = startDrawingProcess;
+                canvas.onmousemove = drawingMovementProcess;
+                canvas.onmouseup = drawingStopProcess;
+                canvas.onmouseleave = drawingStopProcess;
+                
+                canvas.ontouchstart = (e) => {const t = e.touches[0]; startDrawingProcess(t); e.preventDefault();};
+                canvas.ontouchmove = (e) => {const t = e.touches[0]; drawingMovementProcess(t); e.preventDefault();};;
+                canvas.ontouchend = drawingStopProcess;
+            }
+
+            function startDrawingProcess(e)
+            {
+                localDrawing = true;
+                const coords = getCanvasCoordinates(e);
+                drawVector(coords.x, coords.y, 'start');
+
+                if(!isHost && playerConn.open)
+                {
+                    playerConn.send({type:"DRAW_STREAM", x:coords.x, y:coords.y,action:'start'});
+                }
+            }
+
+            function drawingMovementProcess(e)
+            {
+                if(!localDrawing) return;
+                const coords = getCanvasCoordinates(e);
+                drawVector(coords.x, coords.y, 'move');
+
+                if(!isHost && playerConn.open)
+                {
+                    playerConn.send({type:"DRAW_STREAM", x:coords.x, y:coords.y,action:'move'});
+                }
+            }
+
+            function drawingStopProcess(e)
+            {
+                if(!localDrawing) return;
+                localDrawing = false;
+                ctx.beginPath();
+
+                if(!isHost && playerConn.open)
+                {
+                    playerConn.send({type:"DRAW_STREAM", x:0, y:0, action:'stop'});
+                }
+            }
+
+            function disableCanvasInteractions()
+            {
+                canvas.onmousedown = null;
+                canvas.onmousemove = null;
+                canvas.onmouseup = null;
+                canvas.onmouseleave = null;
+                canvas.ontouchstart = null;
+                canvas.ontouchmove = null;
+                canvas.ontouchend = null;
+            }
+
+            function clearCanvasLocal()
+            {
+                ctx.clearRect(0,0,canvas.width,canvas.height);
+            }
+
+            function drawVector(x, y, action)
+            {
+                ctx.lineWidth = 1;
+                ctx.lineCap = 'round';
+                ctx.strokeStyle = "#000000";
+
+                if(action === 'start')
+                {
+                        
+                    ctx.moveTo(x,y);
+                    ctx.lineTo(x,y);
+                    ctx.stroke();
+                }
+                else if(action === 'move')
+                {
+                    ctx.lineTo(x,y);
+                    ctx.stroke();
+                }else if(action === 'stop')
+                {
+                    ctx.beginPath();
+                }
             }
 
         </script>
