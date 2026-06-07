@@ -37,6 +37,7 @@
                 <button onclick="buzzClicked()" id="buzz">Buzz</button>
                 <canvas id="canvas" style="width: 100vw; height:100vh;" hidden></canvas>
             </div>
+            <div id="audioContainers"></div>
         </div>
 
         <script>
@@ -47,9 +48,11 @@
             let hostsMap = {};
             let playerConn = null;
 
+            let peerThatHasBuzzed = null;
             let hasBuzzed = false;
 
             let localDrawing = false;
+            let localConnectedPeersIds = new Set();
 
             const game = document.getElementById('game');
             const hostPanel = document.getElementById('host');
@@ -61,6 +64,17 @@
             const reset = document.getElementById('btn-reset');
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
+            const audioContainers = document.getElementById('audioContainers');
+
+            let localStream = null;
+
+            navigator.mediaDevices.getUserMedia({audio: true, video: false})
+            .then(stream => {
+                localStream = stream;
+            }).catch(err =>
+            {
+                alert("Errore microfono: ", err);
+            });
 
             document.getElementById('btn-host').addEventListener('click', () => {
                 isHost = true;
@@ -89,6 +103,9 @@
                 peer = new Peer();
                 peer.on('open', () => {
                     playerConn = peer.connect(roomID);
+                    let call = peer.call(roomID, localStream);
+                    handleStream(call);
+                    applyModeration('host-only');
 
                     playerConn.on('open', () => {
                         showGameScreen(nickname, roomID);
@@ -99,6 +116,31 @@
                 });
             });
 
+            function applyModeration(mode)
+            {
+                if(isHost) return;
+
+                const audioTrack = localStream.getAudioTracks()[0];
+                if(mode === 'host-only')
+                {
+                    audioTrack.enabled = false;
+                }else{
+                    audioTrack.enabled = true;
+                }
+            }
+
+            function handleStream(call)
+            {
+                call.on('stream', (remoteStream) => {
+                    const audio = document.createElement('audio');
+                    audio.id = remoteStream.id;
+                    audio.srcObject = remoteStream;
+                    audio.autoplay = true;
+
+                    audioContainers.appendChild(audio);
+                });
+            }
+
             function rejection(msg)
             {
                 hostPanel.hidden = false;
@@ -106,12 +148,35 @@
 
                 game.hidden = true;
 
+                peer = null;
+                isHost = false;
+                nickname = "Host"
+
+                hostsMap = {};
+                playerConn = null;
+
+                peerThatHasBuzzed = null;
+                hasBuzzed = false;
+
+                localDrawing = false;
+                localConnectedPeersIds = new Set();
+
+                localStream = null;
+
                 alert(msg);
             }
 
             function setupHostListeners()
             {
+                peer.on('call', (call) => {
+                    call.answer(localStream);
+                    handleStream(call);
+                });
+
                 peer.on('connection', (conn) =>{
+
+                    broadcastAll({type: 'NEW_PEER', peerId: conn.peer});
+
                     conn.on('data', (data) => {
                         if(data.type === 'HANDSHAKE')
                         {
@@ -138,9 +203,11 @@
                         {
                             if(hasBuzzed) return;
                             hasBuzzed = true;
+                            peerThatHasBuzzed = conn.peer;
 
                             notify.textContent = hostsMap[conn.peer].name + " BUZZED";
 
+                            resizeCanvas();
                             broadcastAll({type: "SYNC_BUZZ", name: hostsMap[conn.peer].name}, peer);
                             hostsMap[conn.peer].conn.send({type:"DRAW"});
                         }
@@ -165,6 +232,11 @@
                             let players_list = getPlayerList(hostsMap);
                             updateLeadearboard(players_list);
                             broadcastAll({type:"SYNC_LEADERBOARD", players: players_list});
+                            
+                            if(peerThatHasBuzzed === conn.peer)
+                            {
+                                resetClicked();
+                            }
                         }
                     });
                 });
@@ -192,6 +264,16 @@
 
             function setupPlayerListeners()
             {
+                peer.on('call', (call) => {
+                    call.answer(localStream);
+                    handleStream(call);
+                });
+
+                playerConn.on('close', () =>
+                {
+                    rejection("Host disconnesso!");
+                });
+
                 playerConn.on('data', (data) => {
                     if(data.type === "SYNC_LEADERBOARD")
                     {
@@ -216,13 +298,30 @@
                     if(data.type === "DRAW")
                     {
                         setupCanvasInteractions();
+                        applyModeration("player");
                     }
 
                     if(data.type === "REJECTED")
                     {
                         rejection(data.msg);
                     }
+
+                    if(data.type === "NEW_PEER")
+                    {
+                        connectToPeer(data.peerId);
+                    }
                 });
+
+                
+            }
+
+            function connectToPeer(peerId)
+            {
+                if(localConnectedPeersIds.has(peerId) || peerId === peer.id) return;
+                localConnectedPeersIds.add(peerId);
+
+                let call = peer.call(peerId, localStream);
+                handleStream(call);
             }
 
             function showGameScreen(nickname, roomID)
@@ -296,6 +395,7 @@
                 buzz.hidden = true;
                 canvas.hidden = false;
                 notify.textContent = name + " BUZZED";
+                resizeCanvas();
             }
 
             function buzzClicked()
@@ -309,6 +409,7 @@
             {
                 if(isHost)
                 {
+                    peerThatHasBuzzed = null;
                     hasBuzzed = false;
                 }else
                 {
@@ -319,6 +420,7 @@
                 notify.textContent = "";
                 disableCanvasInteractions();
                 clearCanvasLocal();
+                applyModeration('host-only');
             }
 
             function resetClicked()
@@ -423,6 +525,27 @@
                     ctx.beginPath();
                 }
             }
+
+            function resizeCanvas()
+            {
+                const w = canvas.parentElement.clientWidth;
+                const h = canvas.parentElement.clientHeight;
+                if(canvas.width !== w || canvas.height !== h)
+                {
+                    const tmp = document.createElement('canvas');
+                    tmp.width = canvas.width;
+                    tmp.height = canvas.height;
+                    const tmpCtx = tmp.getContext('2d');
+                    tmpCtx.drawImage(canvas, 0, 0);
+
+                    canvas.width = w;
+                    canvas.height= h;
+
+                    ctx.drawImage(tmp, 0, 0);
+                }
+            }
+
+            window.addEventListener('resize', resizeCanvas);
 
         </script>
     
