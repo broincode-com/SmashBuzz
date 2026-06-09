@@ -1,3 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito&display=swap');
+:root
+{
+--lightGray: #373530;
+--gray: #787774;
+--brown: #976D57;
+--orange: #CC772F;
+--yellow: #C29243;
+--green: #548064;
+--blue: #477DA5;
+--purple: #A48BBE;
+--pink: #B35588;
+--red: #C4554D;
+}
+
+html
+{
+    scroll-behavior: smooth;
+}
+
+body{
+    padding: 0;
+    margin: 0;
+    font-family: 'Nunito', sans-serif;
+}
+
 .center
 {
     width: 100vw;
@@ -11,6 +37,15 @@
 
 button.flexy
 {
+    padding: 5px;
+    border: none;
+    color: white;
+    background-color: var(--blue);
+}
+
+button.point
+{
+    margin-left: 5px;
     padding: 5px;
     border: none;
     color: white;
@@ -143,5 +178,5 @@ canvas
 {
     margin-left: 5px;
     font-size: 11px;
-    max-width: ;
+    max-width: 15px;
 }
