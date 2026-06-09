@@ -4,38 +4,39 @@
         <title>SHAMSHBUZZBROS</title>
         <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
 
-        <style>
-            body{
-                margin: 0;
-                padding: 0;
-            }
-        </style>
+         <link rel="stylesheet" href="FlexyStyle/flexystyle.css">
+         <link rel="stylesheet" href="style.css">
     </head>
-    <body>
-        <h1>SHAMSHBUZZBROS</h1>
-        <div id="host">
-            <h1>Host Game</h1>
-            <button id="btn-host">Host Game</button>
-        </div>
+    <body>        
+        
+        <div class="center">
+            <h1 id="title">SMASHBUZZ</h1>
+            <div class="content">
+                <div id="host">
+                    <h1>Host Game</h1>
+                    <button class="flexy" id="btn-host">Host Game</button>
+                </div>
             
-    
-        <div id="join">
-            <h1>Join Game</h1>
-            <input id="player-id" type="text" placeholder="Player ID">
-            <input id="room-id" type="text" placeholder="codice stanza">
-            <button id="btn-join">Join Game</button>
+                <div id="join">
+                    <h1>Join Game</h1>
+                    <input id="player-id" type="text" placeholder="Player ID">
+                    <input id="room-id" type="text" placeholder="Codice Stanza">
+                    <button class="flexy" id="btn-join">Join Game</button>
+                </div>
+            </div>
         </div>
 
         <div hidden id="game">
-            <p id="status"></p>
-            <div id="leaderboard" style="display: flex; flex-direction:column;"></div>
-
-            <button onclick="resetClicked()" id="btn-reset">Reset</button>
-
             <div>
+                <p id="status"></p>
+                <div id="leaderboard" style="display: flex; flex-direction:column;"></div>
                 <p id="notify"></p>
-                <button onclick="buzzClicked()" id="buzz">Buzz</button>
-                <canvas id="canvas" style="width: 100vw; height:100vh;" hidden></canvas>
+
+                <button class="flexy" onclick="resetClicked()" id="btn-reset">Reset</button>
+            </div>
+            <div class="maxpanel">
+                <button class="buzz" onclick="buzzClicked()" id="buzz">Buzz</button>
+                <canvas id="canvas" style="width: 100%; height:100%;" hidden></canvas>
             </div>
             <div id="audioContainers"></div>
         </div>
@@ -57,6 +58,7 @@
             const game = document.getElementById('game');
             const hostPanel = document.getElementById('host');
             const joinPanel = document.getElementById('join');
+            const centerPanel = document.getElementsByClassName('center')[0];
             const statusText = document.getElementById('status');
             const leaderboard = document.getElementById('leaderboard');
             const buzz = document.getElementById('buzz');
@@ -145,6 +147,7 @@
             {
                 hostPanel.hidden = false;
                 joinPanel.hidden = false;
+                centerPanel.hidden = false;
 
                 game.hidden = true;
 
@@ -328,6 +331,7 @@
             {
                 hostPanel.hidden = true;
                 joinPanel.hidden = true;
+                centerPanel.hidden = true;
 
                 game.hidden = false;
 
@@ -335,12 +339,12 @@
 
                 if(isHost)
                 {
-                    statusText.textContent = "ROOM ID: " + roomID;
+                    statusText.textContent = "ROOM ID:\n" + roomID;
                     reset.hidden = false;
                     buzz.hidden = true;
                     canvas.hidden = false;
                 }else{
-                    statusText.textContent = "ROOM ID: " + roomID + ". You are " + nickname;
+                    statusText.textContent = "ROOM ID:\n" + roomID + ".\nYou are " + nickname;
                     reset.hidden = true;
                     buzz.hidden = false;
                     canvas.hidden = true;
@@ -355,7 +359,7 @@
                     const s = data.score;
                     
                     if(isHost){
-                        leaderboard.innerHTML += "<div style='display:flex; flex-direction:row;'><p>" + n + " " + s + "</p><button onclick='updateScore(\"" + n + "\")'>+1</button></div>";
+                        leaderboard.innerHTML += "<div style='display:flex; flex-direction:row;'><p>" + n + " " + s + "</p><button class=\"flexy reset\" onclick='updateScore(\"" + n + "\")'>+1</button></div>";
                     }else{
                         leaderboard.innerHTML += "<div><p>" + n + " " + s + "</p></div>";
                     }
@@ -530,18 +534,27 @@
             {
                 const w = canvas.parentElement.clientWidth;
                 const h = canvas.parentElement.clientHeight;
+
+                if(w == 0 || h == 0) return;
+
                 if(canvas.width !== w || canvas.height !== h)
                 {
-                    const tmp = document.createElement('canvas');
-                    tmp.width = canvas.width;
-                    tmp.height = canvas.height;
-                    const tmpCtx = tmp.getContext('2d');
-                    tmpCtx.drawImage(canvas, 0, 0);
+                    if(canvas.width > 0 && canvas.height > 0)
+                    {
+                        const tmp = document.createElement('canvas');
+                        tmp.width = canvas.width;
+                        tmp.height = canvas.height;
+                        const tmpCtx = tmp.getContext('2d');
+                        tmpCtx.drawImage(canvas, 0, 0);
 
-                    canvas.width = w;
-                    canvas.height= h;
+                        canvas.width = w;
+                        canvas.height= h;
 
-                    ctx.drawImage(tmp, 0, 0);
+                        ctx.drawImage(tmp, 0, 0);
+                    }else{
+                        canvas.width = w;
+                        canvas.height= h;
+                    }
                 }
             }
 

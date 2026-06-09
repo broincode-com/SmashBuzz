@@ -1,0 +1,147 @@
+.center
+{
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+}
+
+button.flexy
+{
+    padding: 5px;
+    border: none;
+    color: white;
+    background-color: var(--blue);
+}
+
+.buzz
+{
+    width: 120px;
+    height: 120px;
+    background-color: #ff3b30;
+    border: 0;
+    border-radius: 100%;
+    border-style: solid;
+    padding: 100px;
+    color: white;
+    
+    font-size: xx-large;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 15px #700000;
+
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+}
+
+div
+{
+    padding : 5px;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+#join
+{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap:5px;
+}
+
+#host
+{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap:5px;
+}
+
+#title
+{
+    display: block;
+    width: 100vw;
+    text-align: center;
+    margin: 0;
+}
+
+.content
+{
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 100px;
+    padding: 0;
+}
+
+#game
+{
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+}
+
+.maxpanel
+{
+    width: 80vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+canvas
+{
+    border-style: solid;
+    border-color: black;
+
+}
+
+#leaderboard
+{
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    padding: 3px;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+    margin: 20px 0;
+}
+
+#leaderboard-row
+{
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    background-color: whitesmoke;
+    padding: 10px 15px;
+    border-radius: 6px;
+    border-left: 4px solid var(--blue, #0070f3);
+}
+
+#leaderboard-row p
+{
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    align-items: center;
+}
+
+.reset
+{
+    margin-left: 5px;
+    font-size: 11px;
+    max-width: ;
+}
